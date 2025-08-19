@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<!-- saved from url=(0041)file:///C:/Users/Admin/Desktop/index.html -->
+<html lang="zh-Hant"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>收拾家中物品歸位</title>
+  <style>
+    :root{
+      --bg: #0f172a;           /* slate-900 */
+      --panel: #111827cc;      /* gray-900/80 */
+      --accent: #22c55e;       /* green-500 */
+      --accent-2: #60a5fa;     /* blue-400 */
+      --text: #e5e7eb;         /* gray-200 */
+      --muted: #94a3b8;        /* slate-400 */
+      --bad: #ef4444;          /* red-500 */
+      --good: #10b981;         /* emerald-500 */
+      --card: #0b1220;         /* deep panel */
+      --drop: #1f2937;         /* gray-800 */
+      --shadow: 0 10px 30px rgba(0,0,0,.45);
+      --radius: 18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background: radial-gradient(1200px 800px at 80% -10%, #132035 0%, var(--bg) 55%);
+      color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "PingFang TC", "Heiti TC", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      display:flex; flex-direction:column; gap:12px;
+    }
+    header{
+      display:grid; grid-template-columns: 1fr auto auto auto; gap:10px; align-items:center;
+      padding:12px 16px; position:sticky; top:0; z-index:20;
+      background:linear-gradient(180deg, rgba(17,24,39,.95), rgba(17,24,39,.55));
+      backdrop-filter: blur(6px);
+      box-shadow: var(--shadow);
+    }
+    .title{font-weight:800; letter-spacing:.5px;}
+    .pill{display:inline-flex; align-items:center; gap:8px; padding:6px 10px; background:#111827; border:1px solid #1f2937; border-radius:999px; box-shadow: inset 0 0 0 1px #0b1220;}
+    .pill b{font-variant-numeric: tabular-nums}
+    .btn{
+      border:none; padding:10px 14px; border-radius:14px; font-weight:700; cursor:pointer; color:#0b1220;
+      box-shadow: var(--shadow); transition: transform .08s ease, filter .2s ease; user-select:none;
+    }
+    .btn:active{ transform: translateY(1px) }
+    .btn-primary{ background:linear-gradient(180deg, #34d399, #10b981); }
+    .btn-muted{ background:linear-gradient(180deg, #93c5fd, #60a5fa); }
+    .btn-danger{ background:linear-gradient(180deg, #f87171, #ef4444); color:white }
+    .wrap{max-width:1100px; width:100%; margin:0 auto; padding:0 16px 20px; display:grid; gap:12px}
+
+    /* Game board */
+    .board{ display:grid; grid-template-columns: repeat(12, 1fr); grid-auto-rows: 120px; gap:12px; }
+    .room{ background: linear-gradient(180deg, #111827, #0b1220); border:1px solid #1f2937; border-radius: var(--radius); position:relative; overflow:hidden; box-shadow: var(--shadow);}
+    .room h3{ position:absolute; left:12px; top:10px; margin:0; font-size:14px; color:var(--muted); font-weight:700; letter-spacing:.5px }
+    .room .icon{ position:absolute; right:10px; bottom:8px; font-size:28px; opacity:.5 }
+    .dropzone{ position:absolute; inset:0; border:2px dashed transparent; border-radius: inherit; display:flex; align-items:center; justify-content:center; color:#64748b; font-weight:700; letter-spacing:.5px }
+    .room.active .dropzone{ border-color:#334155; background:rgba(99,102,241,.06)}
+    .room.correct{ outline:2px solid var(--good) }
+    .room.wrong{ outline:2px solid var(--bad) }
+
+    /* Rooms layout */
+    #room-living{ grid-column: span 6 }
+    #room-kitchen{ grid-column: span 6 }
+    #room-bedroom{ grid-column: span 4 }
+    #room-bath{ grid-column: span 4 }
+    #room-study{ grid-column: span 4 }
+
+    /* Staging area */
+    .tray{ margin-top:4px; display:grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap:10px }
+    .card{ background:linear-gradient(180deg, #0b1220, #0a1020); border:1px solid #1f2937; border-radius: 16px; padding:10px; min-height:90px; display:flex; align-items:center; justify-content:center; position:relative; box-shadow: var(--shadow);
+      transition: transform .15s ease, box-shadow .2s ease; cursor:grab; user-select:none }
+    .card:active{ cursor:grabbing }
+    .card .emoji{ font-size:30px; display:block }
+    .card .name{ position:absolute; left:8px; bottom:8px; font-size:12px; color:var(--muted); font-weight:700 }
+    .card.dragging{ transform: scale(1.04) rotate(-1.5deg); z-index:50; box-shadow: 0 20px 50px rgba(0,0,0,.6) }
+
+    /* HUD & dialogs */
+    .hud{ display:flex; gap:10px; flex-wrap:wrap; align-items:center }
+    .hint{ color:var(--muted); font-size:13px }
+    .toast{ position:fixed; left:50%; top:16px; transform:translateX(-50%); background:#111827; color:var(--text); padding:10px 14px; border-radius:999px; border:1px solid #1f2937; box-shadow: var(--shadow); display:none }
+    .progress{ height:10px; background:#0b1220; border:1px solid #1f2937; border-radius:999px; overflow:hidden; box-shadow: inset 0 0 0 1px #0a0f1d }
+    .progress > div{ height:100%; width:0%; background: linear-gradient(90deg, #34d399, #60a5fa); transition: width .3s ease }
+
+    .modal{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(2,6,23,.65); backdrop-filter: blur(4px); z-index:80 }
+    .modal .panel{ background: linear-gradient(180deg, #0d1426, #0b1220); border:1px solid #1f2937; border-radius:22px; padding:20px; max-width:520px; width:min(92vw, 520px); box-shadow: var(--shadow) }
+    .panel h2{ margin:0 0 12px; }
+    .panel p{ margin:8px 0; color:var(--muted) }
+    .panel .actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:12px }
+
+    /* Mobile tweaks */
+    @media (max-width: 860px){
+      .board{ grid-auto-rows: 110px }
+      #room-living, #room-kitchen, #room-bedroom, #room-bath, #room-study{ grid-column: span 12 }
+    }
+  </style>
+</head>
+<body>
+  <header class="wrap">
+    <div class="title">🏠 收拾家中物品歸位 <span style="color:var(--muted); font-weight:600; font-size:13px">— 拖曳物品到正確房間</span></div>
+    <div class="pill" id="level-pill">等級 <b id="level">1</b></div>
+    <div class="pill">得分 <b id="score">0</b></div>
+    <div class="pill">時間 <b id="time">47</b>s</div>
+  </header>
+
+  <main class="wrap">
+    <section class="hud">
+      <button class="btn btn-primary" id="startBtn">開始 / 下一關</button>
+      <button class="btn btn-muted" id="hintBtn">提示</button>
+      <button class="btn btn-danger" id="resetBtn">重置</button>
+      <div class="progress" style="flex:1 1 220px; min-width:220px"><div id="progressBar" style="width: 0%;"></div></div>
+      <div class="hint">滑鼠拖曳或用鍵盤 <kbd>Tab</kbd> 選取、<kbd>Enter</kbd> 拿起、<kbd>方向鍵</kbd> 選房間、<kbd>Enter</kbd> 放下。</div>
+    </section>
+
+    <!-- Rooms board -->
+    <section class="board" aria-label="房間">
+      <div class="room" id="room-living" data-room="客廳" tabindex="0" aria-label="客廳，放置區">
+        <h3>客廳</h3><div class="icon">🛋️</div>
+        <div class="dropzone">拖到這裡</div>
+      </div>
+      <div class="room" id="room-kitchen" data-room="廚房" tabindex="0" aria-label="廚房，放置區">
+        <h3>廚房</h3><div class="icon">🍳</div>
+        <div class="dropzone">拖到這裡</div>
+      </div>
+      <div class="room" id="room-bedroom" data-room="臥室" tabindex="0" aria-label="臥室，放置區">
+        <h3>臥室</h3><div class="icon">🛏️</div>
+        <div class="dropzone">拖到這裡</div>
+      </div>
+      <div class="room" id="room-bath" data-room="浴室" tabindex="0" aria-label="浴室，放置區">
+        <h3>浴室</h3><div class="icon">🛁</div>
+        <div class="dropzone">拖到這裡</div>
+      </div>
+      <div class="room" id="room-study" data-room="書房" tabindex="0" aria-label="書房，放置區">
+        <h3>書房</h3><div class="icon">📚</div>
+        <div class="dropzone">拖到這裡</div>
+      </div>
+    </section>
+
+    <!-- Items tray -->
+    <h3 style="margin:14px 2px 0; color:var(--muted)">雜亂區（請整理）：</h3>
+    <section class="tray" id="tray" aria-live="polite"><div class="card" role="button" aria-grabbed="false" tabindex="0" data-room="客廳"><span class="emoji" aria-hidden="true">📺</span><span class="name">遙控器</span></div><div class="card" role="button" aria-grabbed="false" tabindex="0" data-room="書房"><span class="emoji" aria-hidden="true">✏️</span><span class="name">鉛筆</span></div><div class="card" role="button" aria-grabbed="false" tabindex="0" data-room="浴室"><span class="emoji" aria-hidden="true">🧴</span><span class="name">洗髮精</span></div><div class="card" role="button" aria-grabbed="false" tabindex="0" data-room="客廳"><span class="emoji" aria-hidden="true">🛋️</span><span class="name">靠枕</span></div><div class="card" role="button" aria-grabbed="false" tabindex="0" data-room="廚房"><span class="emoji" aria-hidden="true">🍳</span><span class="name">鍋子</span></div><div class="card" role="button" aria-grabbed="false" tabindex="0" data-room="浴室"><span class="emoji" aria-hidden="true">🪥</span><span class="name">牙刷</span></div></section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- Modals -->
+  <div class="modal" id="startModal" aria-modal="true" role="dialog" style="display: none;">
+    <div class="panel">
+      <h2>準備好了嗎？</h2>
+      <p>將物品拖曳到正確的房間。全部正確即可過關！</p>
+      <ul style="margin:8px 0; padding-left:18px; color:var(--muted)">
+        <li>每回合都有時間限制，等級越高時間越少。</li>
+        <li>連續正確有連擊加成，失誤會扣分與連擊。</li>
+        <li>按「提示」可高亮 1 個正確房間（消耗少量分數）。</li>
+      </ul>
+      <div class="actions">
+        <button class="btn btn-primary" id="startGame">開始遊戲</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="endModal" aria-modal="true" role="dialog" style="display: none;">
+    <div class="panel">
+      <h2 id="endTitle">時間到！</h2>
+      <p id="endText">本關得分：<b>0</b><br>最佳紀錄：<b>0</b><br>還剩 <b>6</b> 個物品未整理。</p>
+      <div class="actions">
+        <button class="btn btn-muted" id="retryBtn">再試一次</button>
+        <button class="btn btn-primary" id="nextBtn">下一關</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- 遊戲資料 ---
+    const ITEM_POOL = [
+      { name:"遙控器", emoji:"🕹️", room:"客廳" },
+      { name:"沙發", emoji:"🛋️", room:"客廳" },
+      { name:"玩具車", emoji:"🚗", room:"客廳" },
+      { name:"鍋子", emoji:"🍳", room:"廚房" },
+      { name:"湯匙", emoji:"🥄", room:"廚房" },
+      { name:"盤子", emoji:"🍽️", room:"廚房" },
+      { name:"枕頭", emoji:"🛏️", room:"臥室" },
+      { name:"衣服", emoji:"👕", room:"臥室" },
+      { name:"鬧鐘", emoji:"⏰", room:"臥室" },
+      { name:"牙刷", emoji:"🪥", room:"浴室" },
+      { name:"毛巾", emoji:"🧻", room:"浴室" },
+      { name:"洗髮精", emoji:"🧴", room:"浴室" },
+      { name:"筆電", emoji:"💻", room:"書房" },
+      { name:"書本", emoji:"📖", room:"書房" },
+      { name:"鉛筆", emoji:"✏️", room:"書房" },
+    ];
+
+    const ROOMS = ["客廳","廚房","臥室","浴室","書房"];
+
+    // --- 遊戲狀態 ---
+    const state = {
+      level: 1,
+      score: 0,
+      combo: 0,
+      timeLeft: 60,
+      timer: null,
+      roundItems: [],
+      picked: null, // 目前拿起的卡片元素
+      keyboardMode: false,
+    };
+
+    // --- 元素參考 ---
+    const tray = document.getElementById('tray');
+    const rooms = Array.from(document.querySelectorAll('.room'));
+    const scoreEl = document.getElementById('score');
+    const levelEl = document.getElementById('level');
+    const timeEl = document.getElementById('time');
+    const progressBar = document.getElementById('progressBar');
+    const toast = document.getElementById('toast');
+
+    const startModal = document.getElementById('startModal');
+    const endModal = document.getElementById('endModal');
+    const endTitle = document.getElementById('endTitle');
+    const endText = document.getElementById('endText');
+
+    // --- 工具函式 ---
+    const randInt = (a,b)=> Math.floor(Math.random()*(b-a+1))+a;
+    const sample = (arr,n)=> arr.slice().sort(()=>Math.random()-.5).slice(0,n);
+
+    function showToast(msg){
+      toast.textContent = msg; toast.style.display='block';
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(()=> toast.style.display='none', 900);
+    }
+
+    function updateHUD(){
+      scoreEl.textContent = state.score;
+      levelEl.textContent = state.level;
+      timeEl.textContent = state.timeLeft;
+      const total = levelTargetCount();
+      const done = total - tray.querySelectorAll('.card').length;
+      progressBar.style.width = Math.max(0, Math.min(100, Math.round(done/total*100))) + '%';
+    }
+
+    function levelTargetCount(){
+      // 每關需整理的物品數，會隨等級增加
+      return Math.min(14, 6 + Math.floor((state.level-1)*1.5));
+    }
+    function levelTime(){
+      // 時間逐關遞減
+      return Math.max(25, 60 - (state.level-1)*3);
+    }
+
+    function buildRound(){
+      tray.innerHTML = '';
+      state.roundItems = sample(ITEM_POOL, levelTargetCount());
+      state.roundItems.forEach((it,i)=>{
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.setAttribute('role','button');
+        card.setAttribute('aria-grabbed','false');
+        card.setAttribute('tabindex','0');
+        card.dataset.room = it.room;
+        card.innerHTML = `<span class="emoji" aria-hidden="true">${it.emoji}</span><span class="name">${it.name}</span>`;
+
+        // Pointer drag
+        card.addEventListener('pointerdown', onDragStart);
+        tray.appendChild(card);
+      });
+      updateHUD();
+    }
+
+    // --- 拖曳邏輯（滑鼠/觸控） ---
+    let dragging = null, startX=0,startY=0, oX=0,oY=0;
+    function onDragStart(e){
+      if(e.button!==0 && e.pointerType==='mouse') return;
+      dragging = e.currentTarget; dragging.classList.add('dragging'); dragging.setPointerCapture(e.pointerId);
+      const rect = dragging.getBoundingClientRect();
+      startX = e.clientX; startY = e.clientY; oX = rect.left; oY = rect.top;
+      Object.assign(dragging.style, { position:'fixed', left:rect.left+'px', top:rect.top+'px', width:rect.width+'px', height:rect.height+'px'});
+      rooms.forEach(r=> r.classList.add('active'));
+      dragging.addEventListener('pointermove', onDragMove);
+      dragging.addEventListener('pointerup', onDragEnd);
+    }
+    function onDragMove(e){
+      if(!dragging) return;
+      const dx = e.clientX - startX, dy = e.clientY - startY;
+      dragging.style.left = (oX+dx)+ 'px';
+      dragging.style.top = (oY+dy)+ 'px';
+    }
+    function onDragEnd(e){
+      if(!dragging) return;
+      rooms.forEach(r=> r.classList.remove('active'));
+      const drop = rooms.find(r=> isOver(dragging, r));
+      if(drop){
+        tryPlace(dragging, drop);
+      }else{
+        // 回到原處
+        dragging.style.position=''; dragging.style.left=''; dragging.style.top=''; dragging.style.width=''; dragging.style.height='';
+      }
+      dragging.classList.remove('dragging');
+      dragging.removeEventListener('pointermove', onDragMove);
+      dragging.removeEventListener('pointerup', onDragEnd);
+      dragging.releasePointerCapture(e.pointerId);
+      dragging = null;
+    }
+    function isOver(a,b){
+      const ra = a.getBoundingClientRect();
+      const rb = b.getBoundingClientRect();
+      const cx = ra.left + ra.width/2; const cy = ra.top + ra.height/2;
+      return cx>=rb.left && cx<=rb.right && cy>=rb.top && cy<=rb.bottom;
+    }
+
+    // --- 鍵盤操作（無滑鼠可玩） ---
+    document.addEventListener('keydown', (e)=>{
+      const active = document.activeElement;
+      if(active && active.classList.contains('card')){
+        if(e.key==='Enter'){
+          if(state.picked===active){ // 放下：嘗試放至聚焦的房間
+            const focusRoom = rooms.find(r=> r.matches(':focus'));
+            if(focusRoom) tryPlace(active, focusRoom);
+          }else{
+            state.picked = active; active.setAttribute('aria-grabbed','true'); showToast('選擇了「'+active.querySelector('.name').textContent+'」');
+          }
+          e.preventDefault();
+        }
+      }
+      if(e.key==='Escape' && state.picked){ state.picked.setAttribute('aria-grabbed','false'); state.picked=null; }
+    });
+
+    // --- 核對放置 ---
+    function tryPlace(card, roomEl){
+      const need = card.dataset.room;
+      const got = roomEl.dataset.room;
+      if(need===got){
+        correct(card, roomEl);
+      }else{
+        wrong(card, roomEl);
+      }
+      updateHUD();
+      checkEnd();
+    }
+
+    function correct(card, roomEl){
+      state.combo++;
+      const gain = 100 + (state.combo-1)*15; // 連擊加成
+      state.score += gain;
+      flashRoom(roomEl, true);
+      showToast(`✔ 正確！+${gain} 分（連擊 x${state.combo}）`);
+      // 移除卡片
+      card.remove();
+    }
+    function wrong(card, roomEl){
+      state.combo = 0;
+      const loss = 50;
+      state.score = Math.max(0, state.score - loss);
+      flashRoom(roomEl, false);
+      showToast(`✖ 房間錯了… -${loss} 分`);
+      // 回位
+      card.style.position=''; card.style.left=''; card.style.top=''; card.style.width=''; card.style.height='';
+    }
+    function flashRoom(roomEl, ok){
+      roomEl.classList.add(ok? 'correct':'wrong');
+      setTimeout(()=> roomEl.classList.remove('correct','wrong'), 350);
+    }
+
+    // --- 關卡流程 ---
+    function startLevel(){
+      state.combo = 0;
+      state.timeLeft = levelTime();
+      timeEl.textContent = state.timeLeft;
+      clearInterval(state.timer);
+      state.timer = setInterval(()=>{
+        state.timeLeft--; timeEl.textContent = state.timeLeft;
+        if(state.timeLeft<=0){ clearInterval(state.timer); openEnd(false); }
+      }, 1000);
+      buildRound();
+      hide(startModal); hide(endModal);
+    }
+
+    function openEnd(win){
+      clearInterval(state.timer);
+      const remain = tray.querySelectorAll('.card').length;
+      endTitle.textContent = win? '太棒了，過關！' : '時間到！';
+      const best = Number(localStorage.getItem('tidyBest')||0);
+      if(state.score>best) localStorage.setItem('tidyBest', state.score);
+      endText.innerHTML = `本關得分：<b>${state.score}</b><br>最佳紀錄：<b>${Math.max(best, state.score)}</b><br>${win? '準備挑戰更高等級吧！': `還剩 <b>${remain}</b> 個物品未整理。`}`;
+      show(endModal);
+    }
+
+    function checkEnd(){
+      if(tray.children.length===0){
+        openEnd(true);
+      }
+    }
+
+    // --- UI 綁定 ---
+    document.getElementById('startBtn').addEventListener('click', ()=> show(startModal));
+    document.getElementById('startGame').addEventListener('click', startLevel);
+    document.getElementById('retryBtn').addEventListener('click', ()=>{ hide(endModal); startLevel(); });
+    document.getElementById('nextBtn').addEventListener('click', ()=>{
+      state.level++; levelEl.textContent = state.level; hide(endModal); startLevel();
+    });
+    document.getElementById('resetBtn').addEventListener('click', ()=>{
+      state.level = 1; state.score = 0; levelEl.textContent = 1; updateHUD(); show(startModal);
+    });
+    document.getElementById('hintBtn').addEventListener('click', ()=>{
+      if(tray.children.length===0) return;
+      const target = tray.children[randInt(0, tray.children.length-1)];
+      const roomName = target.dataset.room;
+      const roomEl = rooms.find(r=> r.dataset.room===roomName);
+      pulse(roomEl);
+      const cost = 30;
+      state.score = Math.max(0, state.score - cost);
+      showToast(`提示：${roomName}（-${cost} 分）`);
+      updateHUD();
+    });
+
+    function pulse(el){
+      el.animate([
+        { boxShadow:'0 0 0 0 rgba(96,165,250,.8)' },
+        { boxShadow:'0 0 0 16px rgba(96,165,250,0)' }
+      ],{ duration:550, easing:'ease-out' });
+    }
+
+    function show(el){ el.style.display='flex'; }
+    function hide(el){ el.style.display='none'; }
+
+    // 初始顯示說明
+    show(startModal);
+    updateHUD();
+  </script>
+
+
+</body></html>
